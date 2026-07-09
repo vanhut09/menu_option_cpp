@@ -11,6 +11,11 @@ RegisterDialog::RegisterDialog(QWidget *parent) :
 {
     ui->setupUi(this);
     networkManager = new QNetworkAccessManager(this);
+
+    // 🚀 SỬA LỖI: Liên kết đúng tên nút bấm thực tế là "BtnRegister" trên giao diện của bạn
+    if (ui->BtnRegister) {
+        connect(ui->BtnRegister, &QPushButton::clicked, this, &RegisterDialog::on_BtnRegisterConfirm_clicked);
+    }
 }
 
 RegisterDialog::~RegisterDialog()
@@ -21,10 +26,15 @@ RegisterDialog::~RegisterDialog()
 // Xử lý sự kiện khi người dùng nhấn nút Xác nhận Đăng ký tài khoản mới
 void RegisterDialog::on_BtnRegisterConfirm_clicked()
 {
-    QString username = ui->TxtRegisterUser->text();
+    // Kiểm tra an toàn linh kiện UI thực tế từ hình image_2b962b.jpg
+    if (!ui->TxtRegisterUser || !ui->TxtRegisterPassword) {
+        QMessageBox::critical(this, "Lỗi hệ thống", "Không tìm thấy ô nhập liệu TxtRegisterUser hoặc TxtRegisterPassword!");
+        return;
+    }
+
+    QString username = ui->TxtRegisterUser->text().trimmed();
     QString password = ui->TxtRegisterPassword->text();
 
-    // Kiểm tra tính hợp lệ dữ liệu đầu vào
     if (username.isEmpty() || password.isEmpty()) {
         QMessageBox::warning(this, "Thông báo", "Vui lòng nhập đầy đủ thông tin tài khoản và mật khẩu mới!");
         return;
@@ -43,22 +53,23 @@ void RegisterDialog::on_BtnRegisterConfirm_clicked()
 
     // Tiến hành POST dữ liệu đăng ký lên Server
     QNetworkReply *reply = networkManager->post(request, doc.toJson());
+
     connect(reply, &QNetworkReply::finished, [=]() {
         if (reply->error() == QNetworkReply::NoError) {
             QJsonDocument resDoc = QJsonDocument::fromJson(reply->readAll());
             QJsonObject jsonObj = resDoc.object();
 
-            // Nếu Server xử lý thành công (Tài khoản chưa tồn tại và đã chèn vào MongoDB)
             if (jsonObj["success"].toBool()) {
                 QMessageBox::information(this, "Thành công", "Đăng ký tài khoản thành công!");
                 this->accept(); // Đóng màn hình đăng ký và quay lại màn hình đăng nhập
             } else {
-                // Hiển thị thông báo lỗi cụ thể từ Server (Ví dụ: "Tài khoản này đã tồn tại!")
-                QMessageBox::warning(this, "Thất bại", jsonObj["message"].toString());
+                QString errorMsg = jsonObj["message"].toString();
+                if (errorMsg.isEmpty()) errorMsg = "Tài khoản đã tồn tại hoặc đăng ký thất bại!";
+                QMessageBox::warning(this, "Thất bại", errorMsg);
             }
         } else {
-            QMessageBox::critical(this, "Lỗi", "Không thể kết nối tới Server Python!");
+            QMessageBox::critical(this, "Lỗi", "Không thể kết nối tới Server Python FastAPI!\nHãy chắc chắn bạn đã chạy Backend.");
         }
-        reply->deleteLater(); // Giải phóng vùng nhớ của reply
+        reply->deleteLater();
     });
 }
