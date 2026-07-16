@@ -14,7 +14,6 @@ LoginDialog::LoginDialog(QWidget *parent)
     ui->setupUi(this);
     networkManager = new QNetworkAccessManager(this);
 
-    // Ép liên kết nút bấm đề phòng trường hợp không khớp Auto-Connect của Qt
     if (ui->login) {
         connect(ui->login, &QPushButton::clicked, this, &LoginDialog::on_BtnLogin_clicked);
     }
@@ -25,7 +24,6 @@ LoginDialog::~LoginDialog()
     delete ui;
 }
 
-// Hàm xử lý kiểm tra và xác nhận Đăng nhập
 void LoginDialog::on_BtnLogin_clicked()
 {
     if (!ui->Txttaikhoan || !ui->Txtpassword) {
@@ -76,21 +74,19 @@ void LoginDialog::on_BtnLogin_clicked()
     });
 }
 
-// Cách 1: Chuyển sang Đăng ký bằng nút bấm thông thường
 void LoginDialog::on_BtnGoToRegister_clicked()
 {
-    this->hide(); // Ẩn tạm thời form đăng nhập
+    this->hide();
     RegisterDialog regDlg(this);
-    regDlg.exec(); // Mở form đăng ký dạng cửa sổ tương tác (Modal)
-    this->show(); // Khi đóng form đăng ký, hiện lại form đăng nhập
+    regDlg.exec();
+    this->show();
 }
 
-// Cách 2: Chuyển sang Đăng ký bằng cách click vào dòng chữ link của label_2
 void LoginDialog::on_label_2_linkActivated(const QString &link)
 {
     Q_UNUSED(link);
-    this->hide(); // Ẩn tạm thời form đăng nhập
+    this->hide();
     RegisterDialog regDlg(this);
-    regDlg.exec(); // Mở màn hình đăng ký lên
-    this->show(); // Hiện lại form đăng nhập sau khi tắt form đăng ký
+    regDlg.exec();
+    this->show();
 }

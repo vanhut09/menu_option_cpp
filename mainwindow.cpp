@@ -5,6 +5,7 @@
 #include <QNetworkRequest>
 #include <QJsonObject>
 #include <QJsonDocument>
+#include <QJsonArray>
 #include <QNetworkReply>
 #include <QDate>
 
@@ -16,22 +17,17 @@ MainWindow::MainWindow(QWidget *parent)
 
     networkManager = new QNetworkAccessManager(this);
 
-    // Thời hạn
     ui->cbDuration->addItem("-- Chọn gói thời hạn --", 0);
     ui->cbDuration->addItem("1 Tháng", 1);
     ui->cbDuration->addItem("3 Tháng", 3);
     ui->cbDuration->addItem("6 Tháng", 6);
     ui->cbDuration->addItem("12 Tháng", 12);
 
-    connect(ui->cbService,
-            QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this,
-            &MainWindow::updateCalculations);
+    connect(ui->cbService, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &MainWindow::updateCalculations);
 
-    connect(ui->cbDuration,
-            QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this,
-            &MainWindow::updateCalculations);
+    connect(ui->cbDuration, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &MainWindow::updateCalculations);
 
     fetchServicesFromMongo();
 }
@@ -48,36 +44,41 @@ void MainWindow::setLoggedInUser(const QString &username)
 
 void MainWindow::fetchServicesFromMongo()
 {
-    QUrl url("http://127.0.0.1:3000/api/get-services");
+    QUrl url("http://127.0.0.1:3000/api/services");
 
-    QNetworkReply *reply =
-        networkManager->get(QNetworkRequest(url));
+    QNetworkReply *reply = networkManager->get(QNetworkRequest(url));
 
     connect(reply, &QNetworkReply::finished, [=]() {
-
-        if(reply->error()==QNetworkReply::NoError)
+        if(reply->error() == QNetworkReply::NoError)
         {
-            serviceArray =
-                QJsonDocument::fromJson(reply->readAll()).array();
+            QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
+            QJsonObject jsonObj = doc.object();
 
-            ui->cbService->clear();
-            ui->cbService->addItem("-- Chọn dịch vụ --",0);
-
-            for(const QJsonValue &value : serviceArray)
+            if (jsonObj["success"].toBool())
             {
-                QJsonObject obj=value.toObject();
+                serviceArray = jsonObj["services"].toArray();
 
-                ui->cbService->addItem(
-                    obj["service_name"].toString(),
-                    obj["price_per_month"].toInt()
-                    );
+                ui->cbService->clear();
+                ui->cbService->addItem("-- Chọn dịch vụ --", 0);
+
+                for(const QJsonValue &value : serviceArray)
+                {
+                    QJsonObject obj = value.toObject();
+
+                    ui->cbService->addItem(
+                        obj["service_name"].toString(),
+                        obj["price_per_month"].toInt()
+                        );
+                }
+            }
+            else
+            {
+                QMessageBox::warning(this, "Lỗi", "Không thể lấy danh sách dịch vụ từ Server!");
             }
         }
         else
         {
-            QMessageBox::warning(this,
-                                 "Lỗi",
-                                 "Không tải được danh sách dịch vụ.");
+            QMessageBox::warning(this, "Lỗi", "Không tải được danh sách dịch vụ từ Server.\nHãy chắc chắn bạn đã chạy Backend.");
         }
 
         reply->deleteLater();
@@ -86,18 +87,14 @@ void MainWindow::fetchServicesFromMongo()
 
 void MainWindow::updateCalculations()
 {
-    int pricePerMonth =
-        ui->cbService->currentData().toInt();
+    int pricePerMonth = ui->cbService->currentData().toInt();
+    int months = ui->cbDuration->currentData().toInt();
 
-    int months =
-        ui->cbDuration->currentData().toInt();
-
-    if(pricePerMonth>0 && months>0)
+    if(pricePerMonth > 0 && months > 0)
     {
-        int total=pricePerMonth*months;
+        int total = pricePerMonth * months;
 
-        ui->lblPrice->setText(QString::number(total)+" VNĐ");
-
+        ui->lblPrice->setText(QString::number(total) + " VNĐ");
         ui->lblExpiry->setText(
             QDate::currentDate()
                 .addMonths(months)
@@ -121,64 +118,44 @@ void MainWindow::on_BtnAddMore_clicked()
 
 void MainWindow::on_BtnConfirm_clicked()
 {
-    if(ui->cbService->currentIndex()==0)
+    if(ui->cbService->currentIndex() == 0)
     {
-        QMessageBox::warning(
-            this,
-            "Thông báo",
-            "Vui lòng chọn dịch vụ.");
-
+        QMessageBox::warning(this, "Thông báo", "Vui lòng chọn dịch vụ.");
         return;
     }
 
-    if(ui->cbDuration->currentIndex()==0)
+    if(ui->cbDuration->currentIndex() == 0)
     {
-        QMessageBox::warning(
-            this,
-            "Thông báo",
-            "Vui lòng chọn thời hạn.");
-
+        QMessageBox::warning(this, "Thông báo", "Vui lòng chọn thời hạn.");
         return;
     }
 
-    QNetworkRequest request(
-        QUrl("http://127.0.0.1:3000/api/save-registration"));
-
-    request.setHeader(
-        QNetworkRequest::ContentTypeHeader,
-        "application/json");
+    QNetworkRequest request(QUrl("http://127.0.0.1:3000/api/save-registration"));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 
     QJsonObject registration;
-
-    registration["service_name"]=ui->cbService->currentText();
-    registration["total_price"]=ui->lblPrice->text();
-    registration["expiry_date"]=ui->lblExpiry->text();
+    registration["service_name"] = ui->cbService->currentText();
+    registration["total_price"] = ui->lblPrice->text();
+    registration["reg_date"] = QDate::currentDate().toString("dd/MM/yyyy");
+    registration["expiry_date"] = ui->lblExpiry->text();
 
     QJsonArray arr;
     arr.append(registration);
 
     QJsonObject data;
-
     if(currentUsername.isEmpty())
-        data["username"]="Khách hàng";
+        data["username"] = "Khách hàng";
     else
-        data["username"]=currentUsername;
+        data["username"] = currentUsername;
 
-    data["registrations"]=arr;
+    data["registrations"] = arr;
 
-    QNetworkReply *reply=
-        networkManager->post(
-            request,
-            QJsonDocument(data).toJson());
+    QNetworkReply *reply = networkManager->post(request, QJsonDocument(data).toJson());
 
-    connect(reply,&QNetworkReply::finished,[=](){
-
-        if(reply->error()==QNetworkReply::NoError)
+    connect(reply, &QNetworkReply::finished, [=](){
+        if(reply->error() == QNetworkReply::NoError)
         {
-            QMessageBox::information(
-                this,
-                "Thành công",
-                "Đăng ký dịch vụ thành công.");
+            QMessageBox::information(this, "Thành công", "Đăng ký dịch vụ thành công.");
 
             ui->cbService->setCurrentIndex(0);
             ui->cbDuration->setCurrentIndex(0);
@@ -188,10 +165,7 @@ void MainWindow::on_BtnConfirm_clicked()
         }
         else
         {
-            QMessageBox::critical(
-                this,
-                "Lỗi",
-                reply->errorString());
+            QMessageBox::critical(this, "Lỗi", reply->errorString());
         }
 
         reply->deleteLater();
